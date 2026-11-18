@@ -76,7 +76,10 @@ jobs:
           xcodebuild test -quiet \
             -project Tawny.xcodeproj -scheme Tawny \
             -destination "id=$UDID" -derivedDataPath build/dd \
+            -resultBundlePath build/Tests.xcresult \
             CODE_SIGNING_ALLOWED=NO 2>&1 | tee build/test.log
+          xcrun xcresulttool get test-results summary --path build/Tests.xcresult \
+            | tee -a build/test.log
 
       - name: Screenshots
         run: |

@@ -9,7 +9,7 @@ struct WelcomeView: View {
             VStack(spacing: 24) {
                 OwlMark(size: 128)
                     .shadow(color: Color.berry.opacity(0.25), radius: 24, y: 12)
-                    .padding(.top, 48)
+                    .padding(.top, 24)
 
                 VStack(spacing: 12) {
                     Text("Tawny")
@@ -29,6 +29,9 @@ struct WelcomeView: View {
             .frame(maxWidth: .infinity)
         }
         .scrollBounceBehavior(.basedOnSize)
+        // Centred in the space above the buttons while it fits; scrolls when
+        // larger text sizes make it taller than the screen.
+        .defaultScrollAnchor(.center, for: .alignment)
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: 12) {
                 Button("Get started") { model.path.append(.role) }

@@ -129,10 +129,13 @@ extension WebEngine: WKNavigationDelegate {
 
 extension WebEngine: WKUIDelegate {
     /// Granted to the bundled page alone. iOS still asks the person the first
-    /// time, with the usage strings in Info.plist.
+    /// time, with the usage strings in Info.plist. (The completion-handler
+    /// form, written exactly as WebKit declares it: the async spelling did
+    /// not satisfy the protocol and WebKit silently fell back to its own prompt.)
     func webView(_ webView: WKWebView, requestMediaCapturePermissionFor origin: WKSecurityOrigin,
-                 initiatedByFrame frame: WKFrameInfo, type: WKMediaCaptureType) async -> WKPermissionDecision {
-        frame.isMainFrame && isOurs(origin) ? .grant : .deny
+                 initiatedByFrame frame: WKFrameInfo, type: WKMediaCaptureType,
+                 decisionHandler: @escaping @MainActor @Sendable (WKPermissionDecision) -> Void) {
+        decisionHandler(frame.isMainFrame && isOurs(origin) ? .grant : .deny)
     }
 
     /// The page never opens windows; a stray target=_blank goes to Safari.

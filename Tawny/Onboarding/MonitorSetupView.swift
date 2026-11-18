@@ -79,12 +79,14 @@ struct NameSheet: View {
                         .submitLabel(.continue)
                         .focused($focused)
                         .onSubmit(save)
+                } header: {
+                    Text("What should Tawny call you?")
                 } footer: {
                     Text("Shown to the other phones in this session, so everyone knows who's watching. You can change it in Settings.")
                 }
             }
             .tawnyListBackground()
-            .navigationTitle("What should Tawny call you?")
+            .navigationTitle("Your name")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

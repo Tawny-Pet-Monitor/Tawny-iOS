@@ -125,7 +125,9 @@ struct DiagnosticsView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(16)
                 }
-                .defaultScrollAnchor(.bottom)
+                // Short logs sit at the top; long ones open on the newest line.
+                .defaultScrollAnchor(.top, for: .alignment)
+                .defaultScrollAnchor(.bottom, for: .initialOffset)
             }
         }
         .background(Color.canvas)
