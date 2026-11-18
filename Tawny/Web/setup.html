@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#fbf4f1" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#191410" media="(prefers-color-scheme: dark)">
+<meta name="color-scheme" content="light dark">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src __TAWNY_CONNECT_SRC__; manifest-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
+<title>Tawny server</title>
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="setup.css">
+</head>
+<body>
+
+<main class="screen app setup-page" tabindex="-1">
+  <header class="appbar">
+    <button id="setup-back" class="appbar-back" type="button" aria-label="Back one step" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4.5 7.8 12 15 19.5"/></svg>
+    </button>
+    <div class="appbar-titles">
+      <h1>Tawny server</h1>
+      <p class="appbar-sub" id="appbar-sub">Setup and status for this box</p>
+    </div>
+    <span class="appbar-slot"></span>
+  </header>
+
+  <div class="screen-body">
+    <div class="wrap setup-wrap">
+
+      <div id="verdict" class="verdict">
+        <span id="verdict-icon" class="verdict-icon" aria-hidden="true"></span>
+        <div class="verdict-text">
+          <h2 id="verdict-title">Checking…</h2>
+          <p id="verdict-say">Reading the container's own state.</p>
+          <div id="verdict-extra"></div>
+        </div>
+      </div>
+
+      <div class="setup-grid">
+        <section class="setup-main" aria-labelledby="steps-title">
+          <h2 id="steps-title" class="sect-title">Watch from outside your home</h2>
+          <p id="steps-sub" class="sect-sub">A browser needs a secure address to use a camera or microphone. Tailscale gives this box one that only your own devices can open.</p>
+          <div class="progress">
+            <span class="progress-label" id="progress-label">Checking…</span>
+            <div class="progress-track" id="progress-track"></div>
+          </div>
+          <div id="steps" class="steps"></div>
+        </section>
+
+        <div class="setup-side">
+          <section class="panel-card" aria-labelledby="box-title">
+            <h2 id="box-title" class="sect-title">On this box</h2>
+            <p class="sect-sub">Three small services. Your video never passes through the first two.</p>
+            <div id="box-rows" class="svc-list"><p class="svc-wait">Checking…</p></div>
+          </section>
+
+          <section id="meet" class="panel-card" aria-labelledby="meet-title" hidden>
+            <h2 id="meet-title" class="sect-title">Meeting points</h2>
+            <p class="sect-sub" id="meet-sub">Where your devices find each other before the video connects. Each one is tested from this browser.</p>
+            <ul id="meet-list" class="meet-list" aria-live="polite"></ul>
+            <button id="meet-test" class="wide" type="button">Test again</button>
+            <div id="meet-more"></div>
+          </section>
+        </div>
+      </div>
+
+      <section id="privacy" class="privacy" aria-labelledby="priv-title"></section>
+
+      <p id="fetch-error" class="warn" hidden>Can't reach <code>/setup.json</code>.
+        The container's web server may be restarting — this page keeps trying.</p>
+
+      <div class="setup-foot">
+        <div class="setup-refresh">
+          <span id="refresh-dot" class="dot"></span>
+          <span id="refresh-label">Checking…</span>
+        </div>
+        <!-- One sentence each. This footer used to run to seven lines of
+             caveats under an already long page. -->
+        <p class="fine" id="skip-line" hidden>
+          Not using Tailscale? <a href="#" id="skip-link">Stop showing these steps</a>. Two
+          phones with the Tawny app still pair without this box. A browser needs an
+          <code>https</code> address, though, so this machine's plain address won't start
+          a session anywhere but on the machine itself.
+        </p>
+        <p class="fine">
+          <a href="#" id="leave-link">Open Tawny without finishing</a>: this device
+          only, for a day. This page is always at <code>/setup</code>.
+        </p>
+        <p class="fine"><code>/setup.json</code> has all of this as JSON.</p>
+      </div>
+
+    </div>
+  </div>
+</main>
+
+<div id="toast" class="toast" hidden aria-hidden="true"></div>
+<!-- Screen-reader copy of the toast and of the verdict when it changes. -->
+<div id="announcer" class="sr-only" role="status" aria-live="polite"></div>
+
+<script src="setup.js"></script>
+<script type="module" src="setup-relays.js"></script>
+</body>
+</html>

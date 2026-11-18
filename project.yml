@@ -1,0 +1,114 @@
+# XcodeGen spec. The .xcodeproj is generated from this file (CI runs
+# `xcodegen generate`) and is not committed. Info.plist is generated too: edit
+# the `info.properties` block below, not the plist.
+
+name: Tawny
+options:
+  bundleIdPrefix: com.tawny
+  deploymentTarget:
+    # 18.4: the first iOS whose WebKit decodes the Ogg Vorbis chimes the shared
+    # web app plays. Every iPhone that runs iOS 17 or 18 can reach 18.4.
+    iOS: "18.4"
+  developmentLanguage: en
+  createIntermediateGroups: true
+
+settings:
+  base:
+    MARKETING_VERSION: "1.0.0"
+    # CI overrides this with the workflow run number, which only ever grows.
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_VERSION: "5.0"
+    SWIFT_STRICT_CONCURRENCY: minimal
+    DEVELOPMENT_TEAM: ""
+
+targets:
+  Tawny:
+    type: application
+    platform: iOS
+    sources:
+      - path: Tawny
+        excludes:
+          - "Web"
+          - "Web/**"
+      # The shared web app (vendored by tools/sync-web.sh), copied into the
+      # bundle as a folder so its paths survive: LocalWebServer serves it.
+      - path: Tawny/Web
+        type: folder
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.tawny.monitor
+        PRODUCT_NAME: Tawny
+        TARGETED_DEVICE_FAMILY: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        CODE_SIGN_STYLE: Automatic
+        ENABLE_PREVIEWS: YES
+        SUPPORTS_MACCATALYST: NO
+        SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
+        SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD: NO
+    info:
+      path: Tawny/Info.plist
+      properties:
+        CFBundleDisplayName: Tawny
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSRequiresIPhoneOS: true
+        ITSAppUsesNonExemptEncryption: false
+        UILaunchScreen:
+          UIColorName: LaunchBackground
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        NSCameraUsageDescription: >-
+          Tawny uses the camera to stream live video of your pet to your other
+          phone, and to scan the pairing code on your monitor.
+        NSMicrophoneUsageDescription: >-
+          Tawny uses the microphone so you can hear your pet, and so your pet
+          can hear you when you talk to them.
+        NSLocalNetworkUsageDescription: >-
+          Tawny connects straight to your other phone over your Wi-Fi when both
+          are at home, so the video stays on your own network.
+        NSPhotoLibraryAddUsageDescription: >-
+          Tawny saves the snapshots and clips you take of your pet to your
+          photo library.
+        # The page is served from 127.0.0.1, and a Viewer may dial a Monitor's
+        # relay on the home LAN (ws://192.168.x.x). Nothing else is exempted.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        # tawny://pair?… links: a pairing link shared from a monitor opens here.
+        CFBundleURLTypes:
+          - CFBundleURLName: com.tawny.monitor.pair
+            CFBundleURLSchemes: [tawny]
+        LSApplicationQueriesSchemes: [lightning]
+        # Lets Transaction.all include finished tips, for the thank-you count.
+        SKIncludeConsumableInAppPurchaseHistory: true
+
+  TawnyTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [TawnyTests]
+    dependencies:
+      - target: Tawny
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.tawny.monitor.tests
+
+schemes:
+  Tawny:
+    build:
+      targets:
+        Tawny: all
+        TawnyTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      gatherCoverageData: false
+      targets: [TawnyTests]
+    archive:
+      config: Release
