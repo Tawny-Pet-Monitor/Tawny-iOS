@@ -159,7 +159,7 @@ jobs:
       # App Store Connect API key signing: Xcode makes or reuses the
       # distribution certificate and profile itself (cloud-managed), so there
       # is no .p12 or provisioning profile to keep. The key needs the Admin
-      # role. See README, "TestFlight".
+      # role.
       - name: Sign and upload to TestFlight
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.testflight }}
         env:
@@ -170,7 +170,7 @@ jobs:
         run: |
           set -euo pipefail
           for v in ASC_KEY_ID ASC_ISSUER_ID ASC_PRIVATE_KEY APPLE_TEAM_ID; do
-            if [ -z "${!v}" ]; then echo "::error::Repository secret $v is not set (README, TestFlight)"; exit 1; fi
+            if [ -z "${!v}" ]; then echo "::error::Repository secret $v is not set"; exit 1; fi
           done
           KEY="$RUNNER_TEMP/AuthKey_${ASC_KEY_ID}.p8"
           printf '%s\n' "$ASC_PRIVATE_KEY" > "$KEY"

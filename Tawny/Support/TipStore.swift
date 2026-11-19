@@ -7,7 +7,7 @@ import StoreKit
 /// Nothing is unlocked by a tip, and nothing in Tawny is locked.
 ///
 /// The three products are created in App Store Connect with exactly these
-/// IDs, type Consumable (see README, "Tips").
+/// IDs, type Consumable.
 @MainActor @Observable
 final class TipStore {
     enum Phase: Equatable { case loading, ready([Product]), unavailable }
