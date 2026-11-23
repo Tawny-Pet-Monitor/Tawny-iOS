@@ -2173,6 +2173,47 @@ async function hmacHex(secret, msg) {
   return [...new Uint8Array(mac)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
+// ---- signed descriptions ------------------------------------------------------
+// Every offer and answer carries `sm`: HMAC-SHA256 with the channel key over
+// "tawny-sdp-v1|" + type + "|" + the one certificate fingerprint it names. On
+// the Monitor's own LAN relay no code is shown, and the relay's challenge only
+// proves a socket can reach *someone* holding the key — anyone else on the
+// Wi-Fi can pass it on to a real phone and carry its frames. The signature is
+// what keeps them from putting their own certificate in an offer or answer.
+// Same recipe as the native engine (sas.rs `sign_sdp`/`check_frame`).
+
+/** The one certificate fingerprint a description names, normalised; null for
+ *  none or several distinct ones (the decoy case fails closed). */
+function sdpFingerprint(sdp) {
+  const seen = new Set();
+  for (const line of String(sdp || '').split('\n')) {
+    if (!line.startsWith('a=fingerprint:')) continue;
+    const [alg, fp0] = line.slice('a=fingerprint:'.length).split(' ');
+    const fp = (fp0 || '').trimEnd();
+    if (!alg || !fp || !/^[0-9A-Fa-f:]+$/.test(fp)) continue;
+    seen.add(`${alg.toLowerCase()} ${fp.toUpperCase()}`);
+  }
+  return seen.size === 1 ? [...seen][0] : null;
+}
+
+async function signSdp(kind, sdp) {
+  const fp = sdpFingerprint(sdp);
+  if (!fp || !S.channel?.key) return null;
+  return hmacHex(S.channel.key, `tawny-sdp-v1|${kind}|${fp}`);
+}
+
+/** 'yes' (signed with our key), 'no' (an older Tawny: no signature) or
+ *  'forged' (a signature that doesn't check out). */
+async function sdpSigned(m) {
+  if (m.sm === undefined) return 'no';
+  if (typeof m.sm !== 'string') return 'forged';
+  const want = await signSdp(m.type, m.sdp?.sdp);
+  if (!want || want.length !== m.sm.length) return 'forged';
+  let diff = 0;
+  for (let i = 0; i < want.length; i++) diff |= want.charCodeAt(i) ^ m.sm.charCodeAt(i);
+  return diff === 0 ? 'yes' : 'forged';
+}
+
 // ---- short authentication string --------------------------------------------
 // Only meaningful on the internet-relay path: a compromised rendezvous could try
 // to sit in the middle by swapping DTLS certificate fingerprints. Both ends mix
@@ -2247,8 +2288,10 @@ async function showSas(peer, attempt = 0, since = Date.now()) {
   // Every path that runs through someone else's server gets a code: the
   // rendezvous, and Nostr relays (sealed messages make a swap there far harder,
   // but the code is what lets a person see it did not happen). Only the LAN
-  // path, where the Monitor is its own relay, is skipped.
-  if (!peer.transport || peer.transport.tag === 'lan') {
+  // path, where the Monitor is its own relay, is skipped — and there only
+  // while the other end signs its descriptions (see signSdp): an older Tawny
+  // on the LAN, or someone in its place, gets a code like everyone else.
+  if (!peer.transport || (peer.transport.tag === 'lan' && !peer.unsigned)) {
     if (!attempt) diag(`sas skipped: transport=${peer.transport?.tag || 'none'}`);
     return;
   }
@@ -2302,7 +2345,7 @@ async function showSas(peer, attempt = 0, since = Date.now()) {
  *  relay.) */
 function sasPendingViewers() {
   return viewerPeers().filter(
-    (p) => p.sas && !p.sasOk && !viewerSasReviewed(p)
+    (p) => p.sas && !p.sasOk && (p.unsigned || !viewerSasReviewed(p))
   );
 }
 
@@ -2321,7 +2364,7 @@ function sasPendingViewers() {
  */
 function sasFailedViewers() {
   return viewerPeers().filter(
-    (p) => p.sasFailed && !p.sasOk && !viewerSasReviewed(p)
+    (p) => p.sasFailed && !p.sasOk && (p.unsigned || !viewerSasReviewed(p))
   );
 }
 
@@ -3414,6 +3457,12 @@ async function handle(m, entry) {
       removePeer(m.id);
       break;
     case 'offer': {
+      // A forged signature is never an older Tawny: drop it before anything.
+      const signed = await sdpSigned(m);
+      if (signed === 'forged') {
+        diag(`offer refused: its signature doesn't match the channel key (${m.from})`);
+        return;
+      }
       // The cap used to live only on 'peer-joined', so a peer that skipped
       // straight to an offer was answered unconditionally — and answerPeer
       // attaches the live camera and microphone. Gate both doors.
@@ -3442,6 +3491,9 @@ async function handle(m, entry) {
       }
       const p = ensurePeer(m.from, S.role === 'station' ? 'viewer' : 'station', entry);
       if (S.role === 'station') p.admitted = true;
+      // An unsigned offer over the LAN: an older Tawny (or someone in its
+      // place). Its call gets a code, and the code is asked about every time.
+      p.unsigned = entry?.tag === 'lan' && signed === 'no';
       // The Handheld names its own device in the offer, for the Monitor's rail.
       // Peer-controlled text: printable ASCII only, kept short, only ever shown.
       if (S.role === 'station' && typeof m.label === 'string') {
@@ -3468,6 +3520,12 @@ async function handle(m, entry) {
     }
     case 'answer': {
       const p = S.peers.get(m.from);
+      const signed = await sdpSigned(m);
+      if (signed === 'forged') {
+        diag(`answer dropped: its signature doesn't match the channel key (${m.from})`);
+        break;
+      }
+      if (p) p.unsigned = !!p.unsigned || (entry?.tag === 'lan' && signed === 'no');
       if (p?.pc) {
         try { await p.pc.setRemoteDescription(m.sdp); await flushIce(p); showSas(p); }
         catch (e) { console.error(e); }
@@ -3849,8 +3907,12 @@ async function callPeer(peer) {
 async function makeOffer(peer, opts) {
   if (!peer.pc || peer.pc.signalingState !== 'stable') return;
   const offer = await peer.pc.createOffer(opts);
+  // Signed before it is applied: from setLocalDescription on, candidates go
+  // out, and nothing may come between that and the offer itself.
+  const sm = await signSdp('offer', offer.sdp);
   await peer.pc.setLocalDescription(offer);
   const msg = { type: 'offer', to: peer.id, sdp: peer.pc.localDescription.toJSON() };
+  if (sm) msg.sm = sm;
   // The Handheld tags its offer with a short device name for the Monitor's rail.
   if (S.role === 'viewer') {
     msg.label = S.deviceLabel || shortDeviceLabel('');
@@ -3883,8 +3945,11 @@ async function answerPeer(peer, sdp) {
   await pc.setRemoteDescription(sdp);
   await flushIce(peer);
   const a = await pc.createAnswer();
+  const sm = await signSdp('answer', a.sdp);   // before applying it, as in makeOffer
   await pc.setLocalDescription(a);
-  sig({ type: 'answer', to: peer.id, sdp: pc.localDescription.toJSON() }, peer);
+  const answer = { type: 'answer', to: peer.id, sdp: pc.localDescription.toJSON() };
+  if (sm) answer.sm = sm;
+  sig(answer, peer);
   retuneAll();          // re-apply the uplink ladder to every connected Handheld
   updatePeerChip();
   showSas(peer);
