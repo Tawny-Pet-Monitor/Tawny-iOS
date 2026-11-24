@@ -1517,6 +1517,21 @@ let lastRelayNote = null;
 // the same parameters in the query — and that dialect is accepted ONLY for
 // `tawny:` URLs. A query string on an https link is the logged-secret
 // regression and stays unread.
+/**
+ * The Monitor's Wi-Fi relay as this page dials it, from a pairing link's `h`
+ * (`<ip>:<port>`): through the server this page came from on https
+ * (/lan/<ip>/<port>, wss:// to the browser, cleartext only on the last hop
+ * across the operator's own network; see server.js), straight on http. Only a
+ * private IPv4 address and an ordinary port; anything else is no Wi-Fi way.
+ */
+function lanUrlFor(hint) {
+  const m = /^(\d{1,3}(?:\.\d{1,3}){3}):(\d{1,5})$/.exec(String(hint || ''));
+  if (!m || !isPrivateV4(m[1]) || Number(m[2]) < 1024 || Number(m[2]) > 65535) return null;
+  return location.protocol === 'https:'
+    ? `wss://${location.host}${location.pathname.replace(/[^/]*$/, '')}lan/${m[1]}/${m[2]}`
+    : `ws://${m[1]}:${m[2]}`;
+}
+
 function adopt(raw) {
   lastPairError = null;
   lastRelayNote = null;
@@ -1568,15 +1583,11 @@ function adopt(raw) {
   // Not in the native shell: there the page is http://127.0.0.1, the WebView's
   // CSP names the phone's relay directly, and MainActivity already passes it in
   // through tawnyStart(). Nothing here should second-guess that.
+  let lanHint = null;
   if (!S.nativeShell) {
-    S.signalUrl = null;
     const h = String(p.get('h') || '');
-    const m = /^(\d{1,3}(?:\.\d{1,3}){3}):(\d{1,5})$/.exec(h);
-    if (m && isPrivateV4(m[1]) && Number(m[2]) >= 1024 && Number(m[2]) <= 65535) {
-      S.signalUrl = location.protocol === 'https:'
-        ? `wss://${location.host}${location.pathname.replace(/[^/]*$/, '')}lan/${m[1]}/${m[2]}`
-        : `ws://${m[1]}:${m[2]}`;
-    }
+    S.signalUrl = lanUrlFor(h);
+    if (S.signalUrl) lanHint = h;
   }
 
   // The relay the far end is on. Honoured only when it is somewhere this build
@@ -1603,6 +1614,14 @@ function adopt(raw) {
   if (!ch) {
     ch = { id: newId(), name, key };
     list.push(ch);
+    setChannels(list);
+  }
+  // Keep the Monitor's Wi-Fi address with the channel: a reload of this page
+  // has no link to read it from, and without it the page could only meet the
+  // Monitor over Nostr or a rendezvous (minutes when the public relays are
+  // flaky) while it sat on the same Wi-Fi.
+  if (lanHint && ch.lan !== lanHint) {
+    ch.lan = lanHint;
     setChannels(list);
   }
   renderChannels();
@@ -4797,6 +4816,11 @@ async function start(role, opts = {}) {
   // this must happen before fetchIce() asks /turn for credentials and before
   // pairLink() builds the fragment that hands it on.
   if (role === 'station' && !S.token) S.token = savedToken() || newKey();
+  // A Viewer dials this channel's Monitor on the Wi-Fi at the address its
+  // pairing link gave (kept with the channel by adopt(), so a reload or a
+  // resume from the list still has it). The native shells pass their own
+  // through tawnyStart(); a browser Monitor runs no Wi-Fi relay to dial.
+  if (role === 'viewer' && !S.nativeShell) S.signalUrl = lanUrlFor(S.channel.lan);
   // A Viewer resuming this channel from the list (not a fresh scan) has no
   // token in memory — it only ever lived in this session's S. Pull back
   // whatever it last learned, so "click Viewer" reconnects instead of dialling
