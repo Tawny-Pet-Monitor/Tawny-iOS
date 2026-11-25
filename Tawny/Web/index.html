@@ -368,7 +368,10 @@
 <!-- ============================ LIVE ============================ -->
 <main id="live" class="screen" hidden>
   <div class="stage">
-    <video id="remote" playsinline autoplay muted hidden></video>
+    <!-- The Viewer's zoom moves this layer; the picture inside keeps its turn. -->
+    <div id="remote-zoom">
+      <video id="remote" playsinline autoplay muted hidden></video>
+    </div>
     <!-- Remote audio rides its own element: Android WebView will not reliably
          play an audio-only stream out of a hidden <video>. -->
     <audio id="remote-audio" autoplay></audio>

@@ -3042,8 +3042,8 @@ function teardownAll() {
   S.captureLost = false;
   stageNote(null);
   // clear digital zoom so transforms don't carry over into the next session
-  const remoteEl = document.getElementById('remote');
-  if (remoteEl) remoteEl.style.transform = '';
+  const zl = zoomLayer();
+  if (zl) zl.style.transform = '';
   const localEl = document.getElementById('local');
   if (localEl) localEl.style.transform = '';
   S.zoomLevel = 1.0;
@@ -3634,6 +3634,7 @@ async function handle(m, entry) {
           S.remoteRot = rot;
           diag(`monitor orientation <- rotate ${rot}`);
           applyRemoteRotation();
+          if (S.zoomLevel > 1.005) applyDigitalZoomViewer(S.zoomLevel);
         }
       }
       // The Monitor lost its camera (its screen went off, or the app was
@@ -4405,31 +4406,68 @@ function applyZoom(level) {
   showZoomChip(level);
 }
 
-// How far off-center the pan can go at a given zoom level, in pixels along
-// one axis — the video is scaled about its own center, so past this the
-// letterboxed edge would show past the element's bounds.
-function maxPanFor(level, dim) {
-  return Math.max(0, ((level - 1) / 2) * dim);
+// The Viewer's digital zoom lives on #remote-zoom, a layer around the picture:
+// the picture keeps its own turn (applyRotation) and the layer only scales and
+// moves, transform-origin at its top-left. A point p of the unzoomed stage
+// lands at pan + zoom * p.
+function zoomLayer() { return document.getElementById('remote-zoom'); }
+
+/** Where the picture sits in the unzoomed stage: `contain`, after its turn. */
+function pictureRect() {
+  // The stage's exact size: clientWidth/Height round, and a stage 754.4 px
+  // tall left a hairline of bar under a picture dragged to its bottom edge.
+  // (The layer itself is scaled, so it is measured through the stage.)
+  const r = zoomLayer()?.parentElement?.getBoundingClientRect();
+  const W = r?.width || 0, H = r?.height || 0;
+  let vw = el.remote?.videoWidth || W, vh = el.remote?.videoHeight || H;
+  const q = quarter(S.remoteRot || 0);
+  if (q === 90 || q === 270) [vw, vh] = [vh, vw];
+  const k = vw && vh ? Math.min(W / vw, H / vh) : 1;
+  const w = vw * k, h = vh * k;
+  return { W, H, x: (W - w) / 2, y: (H - h) / 2, w, h, k };
+}
+
+// One axis: a picture larger than the stage may go as far as either of its
+// own edges, never past one into the bars; a smaller one stays centred.
+// `edge` keeps the outermost row of the picture just off the stage: scaled
+// up, the browser blends that row into the bars behind it, which showed as a
+// dark hairline along an edge the picture had been dragged to.
+function clampAxis(t, zoom, start, size, view, edge = 0) {
+  const span = zoom * size;
+  if (span <= view) return (view - span) / 2 - zoom * start;
+  return Math.min(-zoom * start - edge, Math.max(view - zoom * (start + size) + edge, t));
 }
 
 function clampZoomPan() {
-  const remoteEl = document.getElementById('remote');
-  if (!remoteEl) return;
-  const maxX = maxPanFor(S.zoomLevel, remoteEl.clientWidth);
-  const maxY = maxPanFor(S.zoomLevel, remoteEl.clientHeight);
-  S.zoomPanX = Math.min(Math.max(S.zoomPanX, -maxX), maxX);
-  S.zoomPanY = Math.min(Math.max(S.zoomPanY, -maxY), maxY);
+  const r = pictureRect();
+  if (!r.W || !r.H) return;
+  // Half a picture pixel plus half a stage pixel, as zoomed: the browser
+  // snaps the fitted picture to whole pixels, and at 4x that sub-pixel
+  // difference was a 1.5 px band of bar at the picture's edge.
+  const edge = S.zoomLevel * (r.k + 1) / 2;
+  S.zoomPanX = clampAxis(S.zoomPanX, S.zoomLevel, r.x, r.w, r.W, edge);
+  S.zoomPanY = clampAxis(S.zoomPanY, S.zoomLevel, r.y, r.h, r.H, edge);
 }
 
 function applyDigitalZoomViewer(level) {
-  const remoteEl = document.getElementById('remote');
-  if (!remoteEl) return;
+  const box = zoomLayer();
+  if (!box) return;
+  S.zoomLevel = level;
+  if (level <= 1.005) { S.zoomLevel = 1; S.zoomPanX = 0; S.zoomPanY = 0; box.style.transform = ''; return; }
   clampZoomPan();
-  remoteEl.style.transform = level > 1
-    ? `translate(${S.zoomPanX}px, ${S.zoomPanY}px) scale(${level})`
-    : '';
-  remoteEl.style.transformOrigin = 'center center';
+  box.style.transform = `translate(${S.zoomPanX}px, ${S.zoomPanY}px) scale(${level})`;
 }
+
+/** Zoom to `level`, keeping the stage point (x, y) under the same bit of picture. */
+function zoomAround(level, x, y, fromLevel = S.zoomLevel, fromX = S.zoomPanX, fromY = S.zoomPanY) {
+  const z = Math.min(Math.max(level, 1), ZOOM_MAX);
+  const px = (x - fromX) / fromLevel, py = (y - fromY) / fromLevel;
+  S.zoomPanX = x - z * px;
+  S.zoomPanY = y - z * py;
+  applyDigitalZoomViewer(z);
+  showZoomChip(S.zoomLevel);
+}
+const ZOOM_MAX = 8;
 
 async function switchLens(index) {
   const cam = S.cameras[index];
@@ -4504,74 +4542,118 @@ function showZoomChip(level) {
 }
 
 function initPinch() {
-  const vid = document.getElementById('remote');
-  if (!vid) return;
-  let p0 = null, p1 = null, zoomStart = 1.0;
-  const dist = (a, b) => Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+  const box = zoomLayer();
+  const stage = box?.parentElement;
+  if (!box || !stage) return;
+  // In stage coordinates: the stage itself never moves, the layer does.
+  const at = (t) => { const r = stage.getBoundingClientRect(); return { x: t.clientX - r.left, y: t.clientY - r.top }; };
+  const mid = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+  const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+  // The Monitor's own lens zoom (hardware): the lens crops its middle and has
+  // nothing to aim, so the pinch only sets a level and the picture stays put.
+  // Everything else is the Viewer's own zoom, which goes wherever the fingers do.
+  const lens = () => S.stationZoomSupported;
+  let pinch = null;   // { level, x, y, d, mx, my } at the start of a two-finger touch
+  let drag = null;    // { id, x, y, px, py } for a one-finger move while zoomed
 
-  // One-finger drag re-centers the zoomed view instead of just always looking
-  // at the middle of the frame — only live once actually zoomed in, and only
-  // for the digital-fallback path: hardware zoom crops what the station's
-  // lens sends, and a phone lens has no pan/tilt motor to redirect.
-  let panFinger = null, panStart = null, panOrigin = null;
+  const startDrag = (t) => {
+    const p = at(t);
+    drag = { id: t.identifier, x: p.x, y: p.y, px: S.zoomPanX, py: S.zoomPanY };
+  };
+  const startPinch = (a, b) => {
+    const pa = at(a), pb = at(b), m = mid(pa, pb);
+    pinch = { level: S.zoomLevel, x: S.zoomPanX, y: S.zoomPanY, d: dist(pa, pb) || 1, mx: m.x, my: m.y };
+    drag = null;
+  };
+  const sendLens = () => {
+    const sp = stationPeer();
+    if (sp) sig({ type: 'camera-control', zoom: S.zoomLevel, to: sp.id }, sp);
+  };
 
-  vid.addEventListener('touchstart', (e) => {
+  box.addEventListener('touchstart', (e) => {
     if (S.role !== 'viewer') return;
-    if (e.touches.length === 2) {
-      panFinger = null;
-      p0 = { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY };
-      p1 = { clientX: e.touches[1].clientX, clientY: e.touches[1].clientY };
-      zoomStart = S.zoomLevel;
+    if (e.touches.length >= 2) {
+      startPinch(e.touches[0], e.touches[1]);
       e.preventDefault();
-    } else if (e.touches.length === 1 && S.zoomLevel > 1.005 && !S.stationZoomSupported) {
-      panFinger = e.touches[0].identifier;
-      panStart = { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY };
-      panOrigin = { x: S.zoomPanX, y: S.zoomPanY };
+    } else if (e.touches.length === 1 && S.zoomLevel > 1.005 && !lens()) {
+      startDrag(e.touches[0]);
       e.preventDefault();
     }
   }, { passive: false });
 
-  vid.addEventListener('touchmove', (e) => {
-    if (e.touches.length === 2 && p0 !== null) {
+  box.addEventListener('touchmove', (e) => {
+    if (S.role !== 'viewer') return;
+    if (pinch && e.touches.length >= 2) {
       e.preventDefault();
-      const cur = dist(e.touches[0], e.touches[1]);
-      const start = dist(p0, p1);
-      const zoom = Math.min(Math.max(zoomStart * (cur / start), 1.0), 8.0);
-      S.zoomLevel = zoom;
-      if (zoom <= 1.005) { S.zoomPanX = 0; S.zoomPanY = 0; }
-      showZoomChip(zoom);
-      // live digital zoom feedback while pinching (instant, no network round-trip)
-      if (!S.stationZoomSupported) applyDigitalZoomViewer(zoom);
+      const pa = at(e.touches[0]), pb = at(e.touches[1]), m = mid(pa, pb);
+      const level = pinch.level * (dist(pa, pb) / pinch.d);
+      if (lens()) {
+        S.zoomLevel = Math.min(Math.max(level, 1), ZOOM_MAX);
+        showZoomChip(S.zoomLevel);
+        return;
+      }
+      // The bit of picture first under the fingers stays under them: the
+      // pinch zooms there, and moving both fingers moves the picture.
+      zoomAround(level, m.x, m.y, pinch.level, pinch.x + (m.x - pinch.mx), pinch.y + (m.y - pinch.my));
       return;
     }
-    if (panFinger !== null) {
-      const t = Array.from(e.touches).find((x) => x.identifier === panFinger);
+    if (drag) {
+      const t = [...e.touches].find((x) => x.identifier === drag.id);
       if (!t) return;
       e.preventDefault();
-      S.zoomPanX = panOrigin.x + (t.clientX - panStart.clientX);
-      S.zoomPanY = panOrigin.y + (t.clientY - panStart.clientY);
+      const p = at(t);
+      S.zoomPanX = drag.px + (p.x - drag.x);
+      S.zoomPanY = drag.py + (p.y - drag.y);
       applyDigitalZoomViewer(S.zoomLevel);
     }
   }, { passive: false });
 
-  vid.addEventListener('touchend', (e) => {
-    if (e.touches.length < 2) {
-      if (p0 !== null) {
-        const sp = stationPeer();
-        if (S.stationZoomSupported) {
-          // station has hardware zoom — send signal, station applies it to the stream
-          if (sp) sig({ type: 'camera-control', zoom: S.zoomLevel, to: sp.id }, sp);
-        } else {
-          // digital fallback — viewer zooms their own view locally
-          applyDigitalZoomViewer(S.zoomLevel);
-        }
-      }
-      p0 = null; p1 = null;
+  const end = (e) => {
+    if (S.role !== 'viewer') return;
+    if (pinch && e.touches.length < 2) {
+      pinch = null;
+      if (lens()) sendLens();
+      // One finger still down: it carries on moving the picture.
+      if (e.touches.length === 1 && S.zoomLevel > 1.005 && !lens()) startDrag(e.touches[0]);
+      return;
     }
-    if (![...e.touches].some((t) => t.identifier === panFinger)) {
-      panFinger = null; panStart = null; panOrigin = null;
-    }
+    if (drag && ![...e.touches].some((t) => t.identifier === drag.id)) drag = null;
+  };
+  box.addEventListener('touchend', end);
+  box.addEventListener('touchcancel', end);
+
+  // A mouse or a trackpad (a Viewer in a computer's browser): the wheel zooms
+  // at the pointer, a drag moves the picture once zoomed.
+  box.addEventListener('wheel', (e) => {
+    if (S.role !== 'viewer' || lens()) return;
+    e.preventDefault();
+    const p = at(e);
+    zoomAround(S.zoomLevel * Math.exp(-e.deltaY / 300), p.x, p.y);
+  }, { passive: false });
+  let mouse = null;
+  box.addEventListener('pointerdown', (e) => {
+    if (e.pointerType !== 'mouse' || S.role !== 'viewer' || S.zoomLevel <= 1.005 || lens()) return;
+    const p = at(e);
+    mouse = { x: p.x, y: p.y, px: S.zoomPanX, py: S.zoomPanY };
+    box.setPointerCapture(e.pointerId);
+    box.classList.add('dragging');
   });
+  box.addEventListener('pointermove', (e) => {
+    if (!mouse) return;
+    const p = at(e);
+    S.zoomPanX = mouse.px + (p.x - mouse.x);
+    S.zoomPanY = mouse.py + (p.y - mouse.y);
+    applyDigitalZoomViewer(S.zoomLevel);
+  });
+  const drop = () => { mouse = null; box.classList.remove('dragging'); };
+  box.addEventListener('pointerup', drop);
+  box.addEventListener('pointercancel', drop);
+
+  // The stage changed shape (a turn, a resize) or the picture did: keep the
+  // zoomed picture inside its own edges.
+  const refit = () => { if (S.zoomLevel > 1.005) applyDigitalZoomViewer(S.zoomLevel); };
+  window.addEventListener('resize', refit);
+  el.remote?.addEventListener('resize', refit);
 }
 
 // ----------------------------------------------------------------- boot
@@ -5623,14 +5705,25 @@ let coachOn = false;
 // The safety-code card comes first: the tour waits until it has been answered
 // (the #sas-ok / #sas-no handlers and syncStationSas call maybeCoach again).
 const sasUp = () => !el.sas.hidden;
+// Any sheet: the Monitor's pairing code (still up for the next phone), "What's
+// your name", who's watching… The tour spotlights keys on the live screen,
+// and drawn over a sheet it took the sheet over (dogfood, 2026-11-23).
+const sheetUp = () => !!S.shellSheet || !!document.querySelector('.sheet:not([hidden])');
+const coachBlocked = () => document.body.classList.contains('dimmed') || sasUp() || sheetUp();
+let coachRetry = null;
+// Blocked now: look again shortly, for as long as the call is on screen.
+function retryCoach() {
+  if (coachRetry) return;
+  coachRetry = setTimeout(() => { coachRetry = null; if (!el.live.hidden) maybeCoach(); }, 1500);
+}
 function maybeCoach() {
   const role = S.role;
   if (coachOn || !COACH_STEPS[role] || coachSeen(role)) return;
-  if (document.body.classList.contains('dimmed') || sasUp()) return;
+  if (coachBlocked()) { retryCoach(); return; }
   // Give the picture a moment to land before anything is drawn over it.
   setTimeout(() => {
-    if (coachOn || S.role !== role || coachSeen(role)) return;
-    if (document.body.classList.contains('dimmed') || el.live.hidden || sasUp()) return;
+    if (coachOn || S.role !== role || coachSeen(role) || el.live.hidden) return;
+    if (coachBlocked()) { retryCoach(); return; }
     const steps = COACH_STEPS[role]
       .map(([sel, key]) => [document.querySelector(sel), key])
       .filter(([node]) => node && !node.hidden && node.offsetParent !== null);
@@ -5681,7 +5774,7 @@ function runCoach(role, steps) {
     else { bubble.style.bottom = ''; bubble.style.top = `${r.bottom + pad + 12}px`; }
   };
   // Once is once, even if the call drops mid-tour — except when the safety-code
-  // card cuts in, which hides the tour; that one runs again after the card.
+  // card or a sheet cuts in, which hides the tour; it runs again after.
   const end = (shown = true) => {
     if (shown) markCoachSeen(role);
     coachOn = false;
@@ -5697,7 +5790,7 @@ function runCoach(role, steps) {
   // A call that ends, or a screen that dims, takes the tour with it.
   const watch = setInterval(() => {
     if (!coachOn) return clearInterval(watch);
-    if (sasUp()) { clearInterval(watch); end(false); return; }
+    if (sasUp() || sheetUp()) { clearInterval(watch); end(false); retryCoach(); return; }
     if (el.live.hidden || document.body.classList.contains('dimmed')) { clearInterval(watch); end(); }
   }, 500);
   place();
@@ -5833,6 +5926,13 @@ window.tawnyStart = function (role, key, name, signalUrl, rendezvousUrl, token, 
  * only code that now admits a phone. Called from the countdown in
  * MainActivity's pairing sheet; a no-op anywhere else.
  */
+// The Android shell's pairing sheet, over the call: up (true) or down. The
+// first-call tour waits while it is up (see sheetUp).
+window.tawnyPairSheet = function (up) {
+  S.shellSheet = !!up;
+  if (!up && !el.live.hidden) maybeCoach();
+};
+
 window.tawnyPairCode = function (code, expMs) {
   if (S.role !== 'station' || typeof code !== 'string' || !PAIRCODE_RE.test(code)) return false;
   S.pairCode = { c: code, exp: Number(expMs) || (Date.now() + PAIR_TTL_MS) };
