@@ -3634,7 +3634,8 @@ async function handle(m, entry) {
           S.remoteRot = rot;
           diag(`monitor orientation <- rotate ${rot}`);
           applyRemoteRotation();
-          if (S.zoomLevel > 1.005) applyDigitalZoomViewer(S.zoomLevel);
+          // (The Viewer's own zoom only: a lens zoom is the Monitor's.)
+          if (S.zoomLevel > 1.005 && !S.stationZoomSupported) applyDigitalZoomViewer(S.zoomLevel);
         }
       }
       // The Monitor lost its camera (its screen went off, or the app was
@@ -4434,7 +4435,9 @@ function pictureRect() {
 // dark hairline along an edge the picture had been dragged to.
 function clampAxis(t, zoom, start, size, view, edge = 0) {
   const span = zoom * size;
-  if (span <= view) return (view - span) / 2 - zoom * start;
+  // Not wider than the stage by more than the two edges: centred (below that
+  // the two bounds cross and the picture would jump).
+  if (span <= view + 2 * edge) return (view - span) / 2 - zoom * start;
   return Math.min(-zoom * start - edge, Math.max(view - zoom * (start + size) + edge, t));
 }
 
@@ -4628,7 +4631,10 @@ function initPinch() {
     if (S.role !== 'viewer' || lens()) return;
     e.preventDefault();
     const p = at(e);
-    zoomAround(S.zoomLevel * Math.exp(-e.deltaY / 300), p.x, p.y);
+    // In pixels, whatever the browser counts in: Firefox's mouse wheel gives
+    // lines (3 a notch), and without this a notch zoomed about 1%.
+    const dy = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? (stage.clientHeight || 600) : 1);
+    zoomAround(S.zoomLevel * Math.exp(-dy / 300), p.x, p.y);
   }, { passive: false });
   let mouse = null;
   box.addEventListener('pointerdown', (e) => {
@@ -4651,7 +4657,9 @@ function initPinch() {
 
   // The stage changed shape (a turn, a resize) or the picture did: keep the
   // zoomed picture inside its own edges.
-  const refit = () => { if (S.zoomLevel > 1.005) applyDigitalZoomViewer(S.zoomLevel); };
+  // Never with the Monitor's lens zoom: S.zoomLevel is the lens's then, and
+  // enlarging here as well zoomed the picture twice.
+  const refit = () => { if (S.zoomLevel > 1.005 && !lens()) applyDigitalZoomViewer(S.zoomLevel); };
   window.addEventListener('resize', refit);
   el.remote?.addEventListener('resize', refit);
 }
@@ -5921,11 +5929,6 @@ window.tawnyStart = function (role, key, name, signalUrl, rendezvousUrl, token, 
   return true;
 };
 
-/**
- * The shell rotated the pairing code on its overlay — take the new one as the
- * only code that now admits a phone. Called from the countdown in
- * MainActivity's pairing sheet; a no-op anywhere else.
- */
 // The Android shell's pairing sheet, over the call: up (true) or down. The
 // first-call tour waits while it is up (see sheetUp).
 window.tawnyPairSheet = function (up) {
@@ -5933,6 +5936,11 @@ window.tawnyPairSheet = function (up) {
   if (!up && !el.live.hidden) maybeCoach();
 };
 
+/**
+ * The shell rotated the pairing code on its overlay — take the new one as the
+ * only code that now admits a phone. Called from the countdown in
+ * MainActivity's pairing sheet; a no-op anywhere else.
+ */
 window.tawnyPairCode = function (code, expMs) {
   if (S.role !== 'station' || typeof code !== 'string' || !PAIRCODE_RE.test(code)) return false;
   S.pairCode = { c: code, exp: Number(expMs) || (Date.now() + PAIR_TTL_MS) };

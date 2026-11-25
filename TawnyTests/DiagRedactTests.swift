@@ -36,7 +36,7 @@ final class DiagRedactTests: XCTestCase {
 
     func testLinkSecretsGo() {
         let out = r("adopt https://x.example/#k=Zx9_-abcDEF0123456789&n=Pet&t=NvM7UXwo8X79&c=WXXHeH07nDk&np=e8a05f74890e")
-        for secret in ["Zx9_", "NvM7", "WXXH", "e8a05f"] {
+        for secret in ["Zx9_", "NvM7", "WXXH", "e8a05f", "Pet"] {
             XCTAssertFalse(out.contains(secret), out)
         }
     }
@@ -46,6 +46,16 @@ final class DiagRedactTests: XCTestCase {
                        "pair accepted name=<name> lan=- relay=-")
         XCTAssertEqual(r(#"control: {"type":"meta","name":"Pp","from":"c3400f6e8186"}"#),
                        #"control: {"type":"meta","name":"<name>","from":"<id>"}"#)
+    }
+
+    func testQuotedNamesGoWhole() {
+        XCTAssertEqual(r(#"pair accepted name="Lou\"s cat" lan=-"#), "pair accepted name=<name> lan=-")
+        XCTAssertEqual(r(#"{"name":"Mo\"chi Bear","x":1}"#), #"{"name":"<name>","x":1}"#)
+    }
+
+    func testUUIDsAndUppercaseIdsGo() {
+        XCTAssertEqual(r("bond 3f9c2a7b-e41d-4a2b-9c1e-0123456789ab ok"), "bond <id> ok")
+        XCTAssertEqual(r("peer 3F9C2A7BE41D left"), "peer <id> left")
     }
 
     func testHomeAndTailnetHostsGo() {

@@ -68,7 +68,8 @@ final class Diag {
     /// - a peer's id or key: the long hex relays and Nostr give phones. The
     ///   room id after `room=` stays: it is a hash, and lines two phones'
     ///   logs up;
-    /// - a pairing link's key, ticket, code or Monitor key;
+    /// - a pairing link's key, ticket, code, Monitor key or name; a UUID, and
+    ///   hex ids in either case;
     /// - names people typed: `name=…`, and `"name"`/`"label"` in a frame;
     /// - a home or tailnet host name (`*.ts.net`, `*.local`, …), which can
     ///   carry a person's or a household's name.
@@ -96,10 +97,11 @@ final class Diag {
             out = result
         }
         let rules: [(String, String)] = [
-            (#"(?<!room=)(?<![0-9A-Za-z])(?=[0-9a-f]*[a-f])[0-9a-f]{8,}(?![0-9A-Za-z])"#, "<id>"),
-            (#"([?&#](?:k|t|c|np)=)[^&\s"]+"#, "$1<…>"),
-            (#"(\bname=)("[^"]*"|\S+)"#, "$1<name>"),
-            (#"("(?:name|label|myName|device)"\s*:\s*)"[^"]*""#, "$1\"<name>\""),
+            (#"(?<![0-9A-Za-z])[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}(?![0-9A-Za-z])"#, "<id>"),
+            (#"(?<!room=)(?<![0-9A-Za-z])(?=[0-9a-fA-F]*[a-fA-F])[0-9a-fA-F]{8,}(?![0-9A-Za-z])"#, "<id>"),
+            (#"([?&#](?:k|t|c|np|n)=)[^&\s"]+"#, "$1<…>"),
+            (#"(\bname=)("(?:[^"\\]|\\.)*"|\S+)"#, "$1<name>"),
+            (#"("(?:name|label|myName|device)"\s*:\s*)"(?:[^"\\]|\\.)*""#, "$1\"<name>\""),
             (#"(?<![\w.-])[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.(?:ts\.net|local|lan|home\.arpa|internal)(?![\w.-])"#, "<private-host>"),
         ]
         for (pattern, template) in rules {
