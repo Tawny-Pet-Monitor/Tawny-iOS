@@ -186,8 +186,9 @@
       // --- update board ---
       w_whatsnew_eyebrow: 'Updated to v{0}',
       w_whatsnew_title: 'Tawny just got better',
-      w_whatsnew_changelog: 'Read the full changelog',
-      w_whatsnew_thanks: 'Thank you for supporting Tawny. It stays free for everyone because of people like you.',
+      w_whatsnew_sub: 'Here’s what’s new for you and your pet.',
+      w_whatsnew_changelog: 'See everything that changed',
+      w_whatsnew_thanks: 'Tawny stays free because of people like you.',
       w_whatsnew_done: 'Let’s go',
       // --- tip in bitcoin (tip.js) ---
       w_tip_title: 'Tip in Bitcoin',
@@ -490,8 +491,9 @@
       // --- panel de novedades ---
       w_whatsnew_eyebrow: 'Actualizado a v{0}',
       w_whatsnew_title: 'Tawny ahora es mejor',
-      w_whatsnew_changelog: 'Ver el registro de cambios',
-      w_whatsnew_thanks: 'Gracias por apoyar Tawny. Sigue siendo gratis para todos gracias a personas como tú.',
+      w_whatsnew_sub: 'Esto es lo nuevo para ti y tu mascota.',
+      w_whatsnew_changelog: 'Ver todo lo que cambió',
+      w_whatsnew_thanks: 'Tawny sigue siendo gratis gracias a personas como tú.',
       w_whatsnew_done: '¡Vamos!',
       // --- propina en bitcoin (tip.js) ---
       w_tip_title: 'Propina en Bitcoin',

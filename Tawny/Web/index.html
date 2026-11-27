@@ -563,31 +563,34 @@
 </div>
 
 <!-- ========================= UPDATE BOARD =======================
-     Once per version, after an update: what changed, in a line or three,
-     the changelog, a thank-you and the same two tips as the footer. Filled
-     from `release` in config.json, which each platform writes for itself
-     (Tawny Desktop's config.rs, Tawny Docker's server.js). The Android app
-     draws its own natively (MainActivity.showWhatsNew). -->
+     Once per version, after an update: a glowing hero (the icon on slow
+     rays, the version on a tag), the changes that matter most as cards, what
+     the update kept, "Let's go", the changelog, and a quiet line about
+     support. Filled from `release` in config.json, which each platform writes
+     for itself (Tawny Docker's whatsnew.json). The Android app and the native
+     Desktop draw their own (MainActivity.showWhatsNew, WhatsNewSheet). -->
 <div id="whatsnew" class="sheet whatsnew" hidden>
   <canvas id="wn-confetti" class="wn-confetti" aria-hidden="true"></canvas>
-  <div class="sheet-card wn-card" role="dialog" aria-modal="true" aria-labelledby="wn-title">
-    <span class="sheet-grip" aria-hidden="true"></span>
-    <span class="wn-star" aria-hidden="true">
-      <svg viewBox="0 0 24 24"><path d="m12 2.6 2.7 6 6.6.6-5 4.4 1.5 6.5L12 16.7l-5.8 3.4 1.5-6.5-5-4.4 6.6-.6z"/></svg>
-    </span>
-    <p id="wn-eyebrow" class="wn-eyebrow"></p>
+  <div class="sheet-card wn-card" role="dialog" aria-modal="true" aria-labelledby="wn-title" aria-describedby="wn-eyebrow">
+    <div class="wn-hero" aria-hidden="true">
+      <span class="wn-glow"><span class="wn-rays"></span></span>
+      <img class="wn-medal" src="icon.svg" alt="">
+      <span id="wn-tag" class="wn-tag"></span>
+    </div>
+    <p id="wn-eyebrow" class="sr-only"></p>
     <h2 id="wn-title" class="wn-title" data-i18n="w_whatsnew_title">Tawny just got better</h2>
+    <p class="wn-sub" data-i18n="w_whatsnew_sub">Here’s what’s new for you and your pet.</p>
     <ul id="wn-notes" class="wn-notes"></ul>
-    <a id="wn-changelog" class="wn-changelog" href="#" target="_blank" rel="noopener noreferrer">
-      <span data-i18n="w_whatsnew_changelog">Read the full changelog</span> ↗</a>
-    <p class="wn-thanks" data-i18n="w_whatsnew_thanks">Thank you for supporting Tawny. It stays free for everyone because of people like you.</p>
-    <button id="wn-support" class="wn-support" type="button" data-support>
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.3C6.2 16.1 3 12.9 3 9.3 3 6.6 5.1 4.6 7.6 4.6c1.8 0 3.3 1 4.4 2.5 1.1-1.5 2.6-2.5 4.4-2.5 2.5 0 4.6 2 4.6 4.7 0 3.6-3.2 6.8-9 11z"/></svg>
-      <span data-i18n="w_support_title">Support Tawny</span>
-    </button>
+    <p id="wn-kept" class="wn-kept" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 12.5 5 5L20 6.5"/></svg><span></span>
+    </p>
     <div class="sheet-actions">
       <button id="wn-done" class="wide primary" type="button" data-i18n="w_whatsnew_done">Let’s go</button>
     </div>
+    <a id="wn-changelog" class="wn-changelog" href="#" target="_blank" rel="noopener noreferrer">
+      <span data-i18n="w_whatsnew_changelog">See everything that changed</span> ↗</a>
+    <p class="wn-thanks"><span data-i18n="w_whatsnew_thanks">Tawny stays free because of people like you.</span>
+      <button id="wn-support" class="wn-support" type="button" data-support data-i18n="w_support_title">Support Tawny</button></p>
   </div>
 </div>
 

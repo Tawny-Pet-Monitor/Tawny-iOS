@@ -6052,15 +6052,61 @@ function maybeShowWhatsNew(fresh) {
   }, 450);
 }
 
+/** The update board's line icons, in a 24-unit box (stroked). */
+const WN_ICONS = {
+  screenoff: '<rect x="5" y="2.5" width="10" height="19" rx="2.5"/><path d="M9 18.5h2M21.5 9.5A4.5 4.5 0 1 1 17 4.6a3.6 3.6 0 0 0 4.5 4.9z"/>',
+  bolt: '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
+  zoom: '<circle cx="10.5" cy="10.5" r="6.5"/><path d="m20 20-4.8-4.8M10.5 7.5v6M7.5 10.5h6"/>',
+  upright: '<rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2M3 9a9 9 0 0 1 3-6M21 9a9 9 0 0 0-3-6"/>',
+  relay: '<circle cx="12" cy="5.5" r="2.3"/><circle cx="5.5" cy="18" r="2.3"/><circle cx="18.5" cy="18" r="2.3"/><path d="m10.9 7.6-4.3 8.3M13.1 7.6l4.3 8.3M7.8 18h8.4"/>',
+  server: '<rect x="3.5" y="4" width="17" height="7" rx="2"/><rect x="3.5" y="13" width="17" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01M11 7.5h6M11 16.5h6"/>',
+  lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7.5a4 4 0 0 1 8 0V11"/>',
+  star: '<path d="m12 3 2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.5l-5.4 3 1.2-6-4.5-4.2 6.1-.7z"/>'
+};
+
+/**
+ * One change: "icon|Headline|One line" (as the Android app's), an object
+ * { icon, title, body }, or a plain sentence, shown without a headline.
+ */
+function whatsNewItem(n) {
+  let icon = 'star', title = '', body = '';
+  if (n && typeof n === 'object') {
+    icon = String(n.icon || 'star'); title = String(n.title || ''); body = String(n.body || '');
+  } else {
+    const parts = String(n).split('|');
+    if (parts.length === 3) [icon, title, body] = parts; else body = String(n);
+  }
+  const li = document.createElement('li');
+  if (!title) li.className = 'plain';
+  const chip = document.createElement('span');
+  chip.className = 'wn-chip';
+  chip.setAttribute('aria-hidden', 'true');
+  // Only the fixed drawings above are ever put in as markup.
+  chip.innerHTML = '<svg viewBox="0 0 24 24">' + (WN_ICONS[icon] || WN_ICONS.star) + '</svg>';
+  const text = document.createElement('div');
+  if (title) {
+    const b = document.createElement('b');
+    b.textContent = title;
+    text.appendChild(b);
+  }
+  const span = document.createElement('span');
+  span.textContent = body;
+  text.appendChild(span);
+  li.append(chip, text);
+  return li;
+}
+
 function showWhatsNew(r) {
-  $('#wn-eyebrow').textContent = TawnyT.t('w_whatsnew_eyebrow', r.version);
+  const v = String(r.version);
+  $('#wn-eyebrow').textContent = TawnyT.t('w_whatsnew_eyebrow', v);
+  // "1.1.0" → "1.1": the tag is a headline, not a build number.
+  $('#wn-tag').textContent = v.split('-')[0].replace(/\.0$/, '');
   const list = $('#wn-notes');
   list.textContent = '';
-  for (const n of r.notes.slice(0, 4)) {
-    const li = document.createElement('li');
-    li.textContent = String(n);
-    list.appendChild(li);
-  }
+  for (const n of r.notes.slice(0, 4)) list.appendChild(whatsNewItem(n));
+  const kept = $('#wn-kept');
+  kept.hidden = !r.kept;
+  kept.querySelector('span').textContent = r.kept ? String(r.kept) : '';
   const log = $('#wn-changelog');
   log.hidden = !/^https:\/\//.test(r.changelog || '');
   if (!log.hidden) log.href = r.changelog;

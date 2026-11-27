@@ -496,16 +496,14 @@ button { font: inherit; color: inherit; cursor: pointer; }
 @keyframes heart-soft { 0%, 70%, 100% { transform: scale(1); } 80% { transform: scale(1.18); } 90% { transform: scale(1.04); } }
 .support-card:hover .support-card-go { transform: translateX(3px); }
 
-/* ---- the update board's way in: the accent pill */
+/* ---- the update board's way in: a quiet link after the thanks */
 .wn-support {
-  display: inline-flex; align-items: center; gap: 8px; align-self: center;
-  margin-top: 16px; padding: 10px 20px; min-height: 44px;
-  font: inherit; font-size: 14px; font-weight: 600; color: var(--bg);
-  background: var(--fg); border: 0; border-radius: 9999px;
+  display: inline-block; min-height: 44px; padding: 0 6px;
+  font: inherit; font-weight: 600; white-space: nowrap;
+  color: var(--accent-ink); background: none; border: 0;
   -webkit-tap-highlight-color: transparent;
 }
-.wn-support:active { background: color-mix(in srgb, var(--fg) 88%, var(--bg)); }
-.wn-support svg { width: 16px; height: 16px; fill: var(--heart); transform-origin: 50% 55%; animation: heart-soft 2.8s 1s ease-in-out infinite; }
+.wn-support:hover { text-decoration: underline; }
 
 /* ---- the hub */
 .tip-hub { display: flex; flex-direction: column; gap: 8px; }
@@ -2624,62 +2622,105 @@ body:has(#live:not([hidden])) #theme-toggle { display: none; }
   z-index: 1;
   pointer-events: none;
 }
-.wn-card { align-items: center; text-align: center; gap: 0; }
-.wn-star { width: 40px; height: 40px; margin-top: 10px; color: var(--berry); }
-.wn-star svg { width: 100%; height: 100%; fill: currentColor; }
-.wn-eyebrow {
-  margin: 10px 0 0;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: .16em;
-  text-transform: uppercase;
-  color: var(--dim);
+.wn-card { align-items: center; text-align: center; gap: 0; padding-top: 0; }
+/* The one bold moment: the icon on a glow and slow rays, the version on a tag. */
+.wn-hero {
+  position: relative; flex: none; align-self: stretch;
+  height: 128px; margin: 0 -20px; overflow: hidden;
+  border-radius: 21px 21px 0 0;
 }
+/* The glow and rays fade out before the hero ends, so it has no hard edge. */
+.wn-glow {
+  position: absolute; inset: 0; overflow: hidden;
+  background: radial-gradient(120% 90% at 50% 100%, color-mix(in srgb, var(--berry) 34%, transparent), transparent 62%);
+  -webkit-mask: linear-gradient(#000 60%, transparent);
+  mask: linear-gradient(#000 60%, transparent);
+}
+.wn-rays {
+  position: absolute; left: 50%; top: 100%; width: 520px; height: 520px;
+  translate: -50% -56%;
+  background: repeating-conic-gradient(from 0deg, color-mix(in srgb, var(--berry) 34%, transparent) 0 6deg, transparent 6deg 18deg);
+  -webkit-mask: radial-gradient(circle, #000 18%, transparent 58%);
+  mask: radial-gradient(circle, #000 18%, transparent 58%);
+  opacity: .6;
+  animation: wn-turn 72s linear infinite;
+}
+@keyframes wn-turn { to { rotate: 360deg; } }
+.wn-medal {
+  position: absolute; left: 50%; bottom: 10px; width: 84px; height: 84px;
+  translate: -50% 0; border-radius: 24px;
+  box-shadow: 0 0 0 5px var(--panel), 0 0 0 7px var(--berry), 0 14px 32px color-mix(in srgb, var(--berry) 40%, transparent);
+}
+.wn-tag {
+  position: absolute; left: calc(50% + 30px); bottom: 76px;
+  padding: 2px 10px 1px; border-radius: 9999px;
+  font-size: 15px; font-weight: 600; color: var(--on-accent); background: var(--berry);
+  rotate: 8deg; box-shadow: 0 4px 10px rgba(0, 0, 0, .25);
+}
+.wn-tag:empty { display: none; }
 .sheet-card h2.wn-title {
-  margin: 4px 0 0;
+  margin: 8px 0 0;
   font-family: var(--display);
-  font-size: 30px;
+  font-size: 34px;
   font-weight: 400;
-  line-height: 1.2;
+  line-height: 1.1;
 }
+.wn-sub { margin: 8px 0 0; font-size: 15px; line-height: 1.35; color: var(--dim); }
 .wn-notes {
   align-self: stretch;
-  margin: 16px 0 0;
-  padding: 8px 14px;
+  display: grid; gap: 8px;
+  margin: 14px 0 0; padding: 0;
   list-style: none;
   text-align: left;
-  background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: 11px;
 }
 .wn-notes li {
-  position: relative;
-  padding: 6px 0 6px 24px;
-  font-size: 15px;
-  line-height: 1.3;
-  color: var(--fg);
+  display: grid; grid-template-columns: 46px 1fr; gap: 12px; align-items: center;
+  padding: 8px 12px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 16px;
 }
-.wn-notes li::before {
-  content: "✦";
-  position: absolute;
-  left: 2px;
-  color: var(--berry);
+.wn-chip {
+  width: 46px; height: 46px; border-radius: 14px;
+  display: grid; place-items: center;
+  color: var(--on-accent); background: var(--berry);
 }
+.wn-chip svg, .wn-kept svg {
+  fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+}
+.wn-chip svg { width: 26px; height: 26px; }
+.wn-notes div b { display: block; font-size: 16.5px; font-weight: 600; line-height: 1.2; color: var(--fg); }
+.wn-notes div span { display: block; margin-top: 1px; font-size: 14.5px; line-height: 1.3; color: var(--dim); }
+.wn-notes li.plain div span { color: var(--fg); }
+.wn-kept {
+  display: flex; gap: 8px; align-items: center; justify-content: center;
+  margin: 12px 0 0; font-size: 14px; color: var(--dim);
+}
+.wn-kept[hidden] { display: none; }
+.wn-kept svg { width: 16px; height: 16px; flex: none; color: var(--berry); stroke-width: 2.6; }
+.wn-card .sheet-actions { align-self: stretch; margin-top: 14px; }
 .wn-changelog {
-  margin-top: 12px;
-  padding: 6px 10px;
+  margin-top: 6px;
+  padding: 8px 10px;
   font-size: 15px;
-  color: var(--berry);
+  font-weight: 600;
+  color: var(--accent-ink);
   text-decoration: none;
 }
 .wn-changelog:hover { text-decoration: underline; }
 .wn-thanks {
-  margin: 10px 0 0;
-  font-size: 15px;
+  align-self: stretch;
+  margin: 6px 0 0; padding-top: 10px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
   line-height: 1.4;
   color: var(--dim);
 }
-.wn-card .sheet-actions { align-self: stretch; margin-top: 18px; }
+@media (prefers-reduced-motion: reduce) { .wn-rays { animation: none; } }
+[data-motion="off"] .wn-rays { animation: none; }
+/* On the dark panel a card lifts; on white it sits on cream. */
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .wn-notes li { background: var(--raise); } }
+:root[data-theme="dark"] .wn-notes li { background: var(--raise); }
 
 /* ------------------------------------------------------------ who's here */
 
@@ -2943,7 +2984,7 @@ body:has(#live:not([hidden])) #theme-toggle { display: none; }
 
 @media (prefers-reduced-motion: reduce) {
   .hub-kofi .steam { display: none; }
-  .appbar-heart svg, .support-card-heart, .wn-support svg, .tip-qr-badge svg,
+  .appbar-heart svg, .support-card-heart, .tip-qr-badge svg,
   .hub-kofi .mug-heart, .hub-orb .bolt { animation: none; }
 }
 [data-motion="off"] .hub-kofi .steam { display: none; }
